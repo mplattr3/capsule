@@ -3784,8 +3784,7 @@ public class Capsule implements Runnable, InvocationHandler {
      */
     @SuppressWarnings("StringEquality")
     protected static final boolean isUnix() {
-        return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD
-                || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX || PLATFORM == OS_NON_STOP
+        return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX || PLATFORM == OS_NON_STOP;
     }
 
     private static String getOS() {
