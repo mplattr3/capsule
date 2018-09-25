@@ -7,90 +7,35 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.ObjectInput;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.io.Reader;
-import java.lang.instrument.Instrumentation;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.nio.charset.Charset;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.FileTime;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.security.Permission;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Set;
-import java.util.jar.Attributes;
-import java.util.jar.JarEntry;
-import java.util.jar.JarInputStream;
-import java.util.jar.JarOutputStream;
-import java.util.jar.Manifest;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.Properties;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.RandomAccess;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import java.io.*;
+import java.lang.instrument.Instrumentation;
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.*;
+import java.lang.reflect.Proxy;
+import java.net.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.Charset;
+import java.nio.file.*;
+import java.nio.file.FileSystem;
+import java.nio.file.attribute.*;
+import java.security.Permission;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.jar.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
-import static java.util.Collections.*;
 import static java.util.Arrays.asList;
+import static java.util.Collections.*;
 
 /**
  * An application capsule.
@@ -98,7 +43,7 @@ import static java.util.Arrays.asList;
  * This API is to be used by caplets (custom capsules) to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
  *
  * <h2>Writing Caplets</h2>
- *
+ * <p>
  * All non-final protected methods may be overridden by caplets. These methods will usually be called once, but they must be idempotent,
  * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once.
  * <br>
@@ -116,16 +61,16 @@ import static java.util.Arrays.asList;
  * Attributes should be registered with {@link #ATTRIBUTE(String, Object, Object, boolean, String)  ATTRIBUTE}.
  *
  * <h3>Handling Files</h3>
- *
+ * <p>
  * Capsule uses a two-staged <i>file resolution mechanism</i>.
- *
+ * <p>
  * When a manifest property contains a reference to anything that might resolve to a file (or multiple files) -- e.g. the name of a Maven artifact --
  * the string containing the reference is passed to the {@link #lookup(java.lang.String, java.lang.String, java.util.Map.Entry, java.lang.Object) lookup} method,
  * which returns an opaque handle.
- *
+ * <p>
  * When the application launch command line is rendered (or any configuration file that is interpreted by an outside process), the file handles
  * are passed to the {@link #resolve(java.lang.Object) resolve} method, which turns the handle into a list of {@code Path}s.
- *
+ * <p>
  * The operation of {@code lookup} and {@code resolve} can be customized by a caplet, but that process is intentionally left undocumented
  * until that process is finalized.
  *
@@ -213,10 +158,11 @@ public class Capsule implements Runnable, InvocationHandler {
     private static final String OS_UNIX = "unix";
     private static final String OS_POSIX = "posix";
     private static final String OS_VMS = "vms";
+    private static final String OS_NON_STOP = "nonstop";
 
     private static final String OS = getProperty(PROP_OS_NAME).toLowerCase();
 
-    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS);
+    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS, OS_NON_STOP);
     private static final String PLATFORM = getOS();
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
@@ -279,9 +225,13 @@ public class Capsule implements Runnable, InvocationHandler {
     /*
      * Map.Entry<String, T> was chosen to represent an attribute because of rules 1 and 2.
      */
-    /** The application's name. E.g. {@code "The Best Word Processor"} */
+    /**
+     * The application's name. E.g. {@code "The Best Word Processor"}
+     */
     protected static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", T_STRING(), null, false, "The application's name");
-    /** The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"} */
+    /**
+     * The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"}
+     */
     protected static final Entry<String, String> ATTR_APP_ID = ATTRIBUTE("Application-Id", T_STRING(), null, false, "The application's name");
     protected static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", T_STRING(), null, false, "The application's version string");
     protected static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", T_LIST(T_STRING()), null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
@@ -491,6 +441,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Command Line">
     /////////// Command Line ///////////////////////////////////
+
     /**
      * Registers a capsule command-line option. Must be called during the caplet's static initialization.
      * <p>
@@ -691,6 +642,7 @@ public class Capsule implements Runnable, InvocationHandler {
     /*
      * The constructors and methods in this section may be reflectively called by CapsuleLauncher
      */
+
     /**
      * Constructs a capsule.
      * <p>
@@ -785,7 +737,7 @@ public class Capsule implements Runnable, InvocationHandler {
             if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) == null)
                 throw new IllegalArgumentException(jar + " is not a capsule or an executable JAR");
 
-            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null; ) {
                 if (entry.getName().equals(Capsule.class.getName() + ".class")) {
                     isCapsule = true;
                     break;
@@ -1333,6 +1285,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * Launches the process defined by the given {@link ProcessBuilder}.
+     *
      * @param pb the process builder
      * @return the process's exit value
      */
@@ -1664,7 +1617,8 @@ public class Capsule implements Runnable, InvocationHandler {
             Path ownJar = null;
             try {
                 ownJar = findOwnJarFile();
-            } catch (final IllegalStateException ignored) {}
+            } catch (final IllegalStateException ignored) {
+            }
             if (ownJar != null)
                 agents.put(processOutgoingPath(ownJar), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
@@ -1736,7 +1690,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void openSocketStreams(Socket s) throws IOException {
-        synchronized(oc) {
+        synchronized (oc) {
             try {
                 s.setSoTimeout(SOCKET_TIMEOUT);
                 oc.socketOutput = new ObjectOutputStream(s.getOutputStream());
@@ -1753,7 +1707,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void closeComm() {
-        synchronized(oc) {
+        synchronized (oc) {
             log(LOG_VERBOSE, "Closing comm");
             if (oc.socket != null)
                 close(oc.socket);
@@ -1796,7 +1750,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void send0(int message, Object payload) throws IOException {
-        synchronized(oc) {
+        synchronized (oc) {
             if (oc.socketOutput == null)
                 throw new IOException("comm channel not defined");
             log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
@@ -1807,7 +1761,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private boolean receive() throws IOException {
-        synchronized(oc) {
+        synchronized (oc) {
             if (!AGENT)
                 verifyAfterStage(STAGE_LAUNCH);
             if (oc.socket == null)
@@ -1849,6 +1803,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected InetSocketAddress getLocalAddress() {
@@ -1894,8 +1849,10 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
     /////////// Capsule Cache ///////////////////////////////////
+
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected final Path getCacheDir() {
@@ -1978,6 +1935,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="App Cache">
     /////////// App Cache ///////////////////////////////////
+
     /**
      * This capsule's cache directory, or {@code null} if capsule has been configured not to extract, or the app cache dir hasn't been set up yet.
      */
@@ -2325,7 +2283,8 @@ public class Capsule implements Runnable, InvocationHandler {
             Path p = null;
             try {
                 p = findJarFile(c.getClass());
-            } catch (final IllegalStateException ignored) {} // Ignore non-JARs
+            } catch (final IllegalStateException ignored) {
+            } // Ignore non-JARs
             if (p != null && !classPath.contains(p))
                 classPath.add(p);
         } while ((c = sup) != null);
@@ -2519,6 +2478,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Get Java Home">
     /////////// Get Java Home ///////////////////////////////////
+
     /**
      * The path to the Java installation this capsule's app will use.
      */
@@ -2671,6 +2631,7 @@ public class Capsule implements Runnable, InvocationHandler {
      * The methods in this section are the only ones accessing the manifest. Therefore other means of
      * setting attributes can be added by changing these methods alone.
      */
+
     /**
      * Registers a manifest attribute. Must be called during the caplet's static initialization.
      *
@@ -2944,6 +2905,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Attribute Types and Parsing">
     /////////// Attribute Types and Parsing ///////////////////////////////////
+
     /**
      * Represents the attribute type {@code String}
      */
@@ -3251,7 +3213,7 @@ public class Capsule implements Runnable, InvocationHandler {
         Collections.reverse(names);
         int index = -1;
         try (ZipInputStream zis = openJarInputStream(jar)) {
-            for (ZipEntry entry; (entry = zis.getNextEntry()) != null;)
+            for (ZipEntry entry; (entry = zis.getNextEntry()) != null; )
                 index = Math.max(index, names.indexOf(entry.getName()));
         } catch (IOException e) {
             throw rethrow(e);
@@ -3263,8 +3225,10 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Paths">
     /////////// Paths ///////////////////////////////////
+
     /**
      * Converts a string file/dependency descriptor listed in the manifest to an opaque file descriptor used in attributes of type {@link #T_FILE() T_FILE}).
+     *
      * @param x           the file/dependency descriptor
      * @param type        the file type (extension), needed only for artifact coordinates; if {@code null}, the default ({@code jar}) is used.
      * @param attrContext the attribute containing the file reference to look up; may be {@code null}
@@ -3296,6 +3260,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected Object lookup0(Object x, String type, Entry<String, ?> attrContext, Object context) {
@@ -3373,6 +3338,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected List<Path> resolve0(Object x) {
@@ -3526,7 +3492,7 @@ public class Capsule implements Runnable, InvocationHandler {
     //<editor-fold defaultstate="collapsed" desc="JAR Extraction">
     /////////// JAR Extraction ///////////////////////////////////
     private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
-        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
+        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null; ) {
             if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
                 continue;
 
@@ -3557,7 +3523,7 @@ public class Capsule implements Runnable, InvocationHandler {
         final List<Path> res = new ArrayList<>();
         final Pattern p = Pattern.compile(globToRegex(glob));
         try (ZipInputStream zis = openJarInputStream(jar)) {
-            for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
+            for (ZipEntry entry; (entry = zis.getNextEntry()) != null; ) {
                 if ((!regular || !entry.isDirectory()) && p.matcher(entry.getName()).matches())
                     res.add(path(entry.getName())); // new URL("jar", "", jar + "!/" + entry.getName())
             }
@@ -3613,7 +3579,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
                 try (final JarOutputStream out = new JarOutputStream(os, man)) {
                     final Set<String> copied = new HashSet<>();
-                    for (JarEntry entry; (entry = first.getNextJarEntry()) != null;) {
+                    for (JarEntry entry; (entry = first.getNextJarEntry()) != null; ) {
                         if (!entry.getName().equals(MANIFEST_NAME)) {
                             out.putNextEntry(new JarEntry(entry));
                             copy(first, out);
@@ -3621,7 +3587,7 @@ public class Capsule implements Runnable, InvocationHandler {
                             copied.add(entry.getName());
                         }
                     }
-                    for (JarEntry entry; (entry = second.getNextJarEntry()) != null;) {
+                    for (JarEntry entry; (entry = second.getNextJarEntry()) != null; ) {
                         if (!entry.getName().equals(MANIFEST_NAME) && !copied.contains(entry.getName())) {
                             out.putNextEntry(new JarEntry(entry));
                             copy(second, out);
@@ -3734,6 +3700,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="OS">
     /////////// OS ///////////////////////////////////
+
     /**
      * Tests whether the current OS is Windows.
      */
@@ -3756,7 +3723,7 @@ public class Capsule implements Runnable, InvocationHandler {
     @SuppressWarnings("StringEquality")
     protected static final boolean isUnix() {
         return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD
-                || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
+                || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX || PLATFORM == OS_NON_STOP
     }
 
     private static String getOS() {
@@ -3776,6 +3743,8 @@ public class Capsule implements Runnable, InvocationHandler {
             return OS_HP_UX;
         if (OS.contains("vms"))
             return OS_VMS;
+        if (OS.contains("nonstop"))
+            return OS_NON_STOP;
 
         log(LOG_QUIET, "WARNING Unrecognized OS: " + System.getProperty(PROP_OS_NAME));
         return null;
@@ -3816,7 +3785,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private static InputStream getEntry(ZipInputStream zis, String name) throws IOException {
-        for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
+        for (ZipEntry entry; (entry = zis.getNextEntry()) != null; ) {
             if (entry.getName().equals(name))
                 return zis;
         }
@@ -3847,7 +3816,7 @@ public class Capsule implements Runnable, InvocationHandler {
         if (!is.markSupported())
             is = new BufferedInputStream(is);
         int state = 0;
-        for (;;) {
+        for (; ; ) {
             if (state == 0)
                 is.mark(ZIP_HEADER.length);
             final int b = is.read();
@@ -3948,7 +3917,7 @@ public class Capsule implements Runnable, InvocationHandler {
      */
     static void copy(InputStream is, OutputStream out) throws IOException {
         final byte[] buffer = new byte[1024];
-        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
+        for (int bytesRead; (bytesRead = is.read(buffer)) != -1; )
             out.write(buffer, 0, bytesRead);
         out.flush();
     }
@@ -4566,7 +4535,7 @@ public class Capsule implements Runnable, InvocationHandler {
         return (map != null && !map.isEmpty()) ? map : null;
     }
 
-//    private static <K, V> Map<K, List<V>> multiput(Map<K, List<V>> map, K key, V value) {
+    //    private static <K, V> Map<K, List<V>> multiput(Map<K, List<V>> map, K key, V value) {
 //        List<V> list = map.get(key);
 //        if (list == null) {
 //            list = new ArrayList<>();
@@ -4776,6 +4745,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
@@ -4903,7 +4873,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private static boolean waitFor(Process p, long millis) throws InterruptedException {
         // return p.waitFor(millis, TimeUnit.MILLISECONDS); // JDK 8
         final long deadline = System.nanoTime() + millis * 1_000_000;
-        for (;;) {
+        for (; ; ) {
             if (!isAlive(p))
                 return true;
             long sleep = Math.min((deadline - System.nanoTime()) / 1_000_000, 20);
@@ -5122,6 +5092,7 @@ public class Capsule implements Runnable, InvocationHandler {
     /**
      * Prints a value to {@code System.err} and returns it.
      * Useful for debugging
+     *
      * @param label a prefix label
      * @param x     the value to trace
      * @return {@code x}
@@ -5281,21 +5252,21 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="JMX">
     /////////// JMX ///////////////////////////////////
+
     /**
      * The Capsule agent will invoke this method to start a JMX Server.
      * The default implementation creates a local JMX connector.
-     *
+     * <p>
      * For internal use; subject to change/removal.
      *
      * @return The JMX service URL that the parent Capsule process will use to connect and proxy JMX commands.
-     *
      * @deprecated marked deprecated to exclude from javadoc
      */
     protected JMXServiceURL startJMXServer() {
         /*
-        * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/Agent.java
-        * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/jmxremote/ConnectorBootstrap.java
-        */
+         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/Agent.java
+         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/jmxremote/ConnectorBootstrap.java
+         */
         final String LOCAL_CONNECTOR_ADDRESS_PROP = "com.sun.management.jmxremote.localConnectorAddress";
 
         try {
@@ -5344,7 +5315,7 @@ public class Capsule implements Runnable, InvocationHandler {
     protected final MBeanServerConnection getMBeanServerConnection() {
         verifyAgent(false);
         verifyAfterStage(STAGE_LAUNCH);
-        synchronized(oc) {
+        synchronized (oc) {
             if (oc.jmxConnection == null) {
                 try {
                     send(MESSAGE_START_JMX, null);
@@ -5374,12 +5345,12 @@ public class Capsule implements Runnable, InvocationHandler {
             MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
             if (platformMBeanServer instanceof com.sun.jmx.mbeanserver.JmxMBeanServer) {
                 Field interceptorField = accessible(com.sun.jmx.mbeanserver.JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
-                this.origMBeanServer = (MBeanServer)interceptorField.get(platformMBeanServer);
+                this.origMBeanServer = (MBeanServer) interceptorField.get(platformMBeanServer);
                 MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
                 interceptorField.set(platformMBeanServer, interceptor);
             }
             // accessible(ManagementFactory.class.getDeclaredField("platformMBeanServer")).set(null, this);
-        } catch(ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException e) {
             throw rethrow(e);
         }
     }
@@ -5404,7 +5375,7 @@ public class Capsule implements Runnable, InvocationHandler {
             log(LOG_DEBUG, "Exception while running method " + method + " with args: " + Arrays.toString(args) + ": " + t);
             log(LOG_DEBUG, t);
             throw e;
-        } catch(Exception e) {
+        } catch (Exception e) {
             log(LOG_VERBOSE, "Exception while running method " + method + " with args: " + Arrays.toString(args) + ": " + e);
             log(LOG_VERBOSE, e);
             throw e;
@@ -5414,6 +5385,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Object Methods">
     /////////// Object Methods ///////////////////////////////////
+
     /**
      * Throws a {@link CloneNotSupportedException}
      *
@@ -5474,6 +5446,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Loading and Launching">
     /////////// Capsule Loading and Launching ///////////////////////////////////
+
     /**
      * Loads the wrapped capsule when this capsule is the wrapper.
      * Caplets can override this method to provide security.
