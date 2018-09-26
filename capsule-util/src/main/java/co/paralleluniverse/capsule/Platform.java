@@ -1,8 +1,8 @@
 /*
  * Capsule
  * Copyright (c) 2014-2015, Parallel Universe Software Co. All rights reserved.
- * 
- * This program and the accompanying materials are licensed under the terms 
+ *
+ * This program and the accompanying materials are licensed under the terms
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
@@ -12,7 +12,6 @@ import java.util.Objects;
 
 
 /**
- *
  * @author pron
  */
 public final class Platform {
@@ -28,16 +27,17 @@ public final class Platform {
     public static final String OS_UNIX = "unix";
     public static final String OS_POSIX = "posix";
     public static final String OS_VMS = "vms";
-    
+    private static final String OS_NON_STOP = "nonstop";
+
     private static final Platform MY_PLATFORM = new Platform(System.getProperty(PROP_OS_NAME));
 
     public static Platform myPlatform() {
         return MY_PLATFORM;
     }
-    
+
     private final String os;
     private final String platform;
-    
+
     public Platform(String os) {
         this.os = os.toLowerCase();
         this.platform = getOS(this.os);
@@ -47,7 +47,7 @@ public final class Platform {
     public String toString() {
         return "Platform{" + "os: " + os + ", platform: " + platform + '}';
     }
-    
+
 
     @Override
     public int hashCode() {
@@ -67,7 +67,7 @@ public final class Platform {
             return false;
         return true;
     }
-    
+
     /**
      * Tests whether the current OS is Windows.
      */
@@ -92,19 +92,6 @@ public final class Platform {
         return platform == OS_LINUX;
     }
 
-    /**
-     * Tests whether the current OS is UNIX/Linux.
-     */
-    @SuppressWarnings("StringEquality")
-    public boolean isUnix() {
-        return platform == OS_LINUX || platform == OS_SOLARIS || platform == OS_BSD
-                || platform == OS_AIX || platform == OS_HP_UX;
-    }
-
-    public String getOS() {
-        return platform;
-    }
-
     private static String getOS(String os) {
         if (os.startsWith("windows"))
             return OS_WINDOWS;
@@ -122,8 +109,22 @@ public final class Platform {
             return OS_HP_UX;
         if (os.contains("vms"))
             return OS_VMS;
+        if (os.contains("nonstop"))
+            return OS_NON_STOP;
 
         return null;
+    }
+
+    public String getOS() {
+        return platform;
+    }
+
+    /**
+     * Tests whether the current OS is UNIX/Linux.
+     */
+    @SuppressWarnings("StringEquality")
+    public boolean isUnix() {
+        return platform == OS_LINUX || platform == OS_SOLARIS || platform == OS_BSD || platform == OS_AIX || platform == OS_HP_UX || platform == OS_NON_STOP;
     }
 
     /**
